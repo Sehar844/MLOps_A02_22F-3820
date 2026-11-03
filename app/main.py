@@ -2,17 +2,22 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 import json
+import os
+
 import joblib
 import pandas as pd
+import redis
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 MODEL_PATH = BASE_DIR / "artifacts" / "model.joblib"
 MODEL_CARD_PATH = BASE_DIR / "artifacts" / "model_card.json"
 PARAMS_PATH = BASE_DIR / "params.yaml"
+
 
 FEATURES = [
     "mean_radius",
@@ -47,9 +52,13 @@ FEATURES = [
     "worst_fractal_dimension",
 ]
 
+
 model = None
 model_card = {}
 decision_threshold = 0.5
+
+redis_client = None
+REDIS_COUNTER_KEY = "prediction_count"
 
 
 class PredictionInput(BaseModel):
@@ -65,6 +74,7 @@ class PredictionInput(BaseModel):
     mean_concave_points: float = Field(ge=0)
     mean_symmetry: float = Field(gt=0)
     mean_fractal_dimension: float = Field(gt=0)
+
     radius_error: float = Field(ge=0)
     texture_error: float = Field(ge=0)
     perimeter_error: float = Field(ge=0)
@@ -75,6 +85,7 @@ class PredictionInput(BaseModel):
     concave_points_error: float = Field(ge=0)
     symmetry_error: float = Field(ge=0)
     fractal_dimension_error: float = Field(ge=0)
+
     worst_radius: float = Field(gt=0)
     worst_texture: float = Field(gt=0)
     worst_perimeter: float = Field(gt=0)
@@ -89,7 +100,7 @@ class PredictionInput(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global model, model_card, decision_threshold
+    global model, model_card, decision_threshold, redis_client
 
     if not MODEL_PATH.exists():
         raise RuntimeError(f"Model file not found: {MODEL_PATH}")
@@ -105,8 +116,22 @@ async def lifespan(app: FastAPI):
 
         with open(PARAMS_PATH, "r") as file:
             params = yaml.safe_load(file)
+
         decision_threshold = float(
             params.get("decision_threshold", 0.5)
+        )
+
+    redis_host = os.getenv("REDIS_HOST")
+
+    if redis_host:
+        redis_port = int(os.getenv("REDIS_PORT", "6379"))
+
+        redis_client = redis.Redis(
+            host=redis_host,
+            port=redis_port,
+            decode_responses=True,
+            socket_connect_timeout=1,
+            socket_timeout=1,
         )
 
     yield
@@ -149,6 +174,14 @@ def predict(data: PredictionInput):
         probability >= decision_threshold
     )
 
+    # Increment Redis counter on every successful prediction
+    # If Redis is unavailable, prediction should still work
+    if redis_client is not None:
+        try:
+            redis_client.incr(REDIS_COUNTER_KEY)
+        except redis.exceptions.RedisError:
+            pass
+
     return {
         "prediction": prediction,
         "diagnosis": (
@@ -160,6 +193,29 @@ def predict(data: PredictionInput):
             "model_version", "1.0.0"
         ),
     }
+
+
+@app.get("/stats")
+def stats():
+    if redis_client is None:
+        return {
+            "redis_available": False,
+            "prediction_count": None,
+        }
+
+    try:
+        count = redis_client.get(REDIS_COUNTER_KEY)
+
+        return {
+            "redis_available": True,
+            "prediction_count": int(count) if count else 0,
+        }
+
+    except redis.exceptions.RedisError:
+        return {
+            "redis_available": False,
+            "prediction_count": None,
+        }
 
 
 @app.get("/model/info")

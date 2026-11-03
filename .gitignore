@@ -1,4 +1,8 @@
-
 __pycache__/
 *.py[cod]
 .venv/
+
+# Environment variables
+.env
+.env.*
+!.env.example
