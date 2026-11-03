@@ -1,0 +1,19 @@
+random_state: 42
+
+test_size: 0.2
+
+cv_folds: 5
+
+decision_threshold: 0.5
+
+model_version: "1.0.0"
+
+logistic_regression:
+  C: 1.0
+  max_iter: 2000
+
+random_forest:
+  n_estimators: 200
+  max_depth: 10
+  min_samples_split: 2
+  min_samples_leaf: 1

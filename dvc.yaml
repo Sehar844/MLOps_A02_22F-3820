@@ -1,0 +1,19 @@
+stages:
+  train:
+    cmd: 'cmd /c ".venv\Scripts\python.exe training\train.py --data-path data\raw\breast_cancer.csv --output-dir artifacts --model-version ${model_version}"'
+    deps:
+      - training/train.py
+      - data/raw/breast_cancer.csv
+      - params.yaml
+    params:
+      - random_state
+      - test_size
+      - cv_folds
+      - model_version
+      - logistic_regression
+      - random_forest
+    outs:
+      - artifacts/model.joblib
+    metrics:
+      - artifacts/model_card.json:
+          cache: false
