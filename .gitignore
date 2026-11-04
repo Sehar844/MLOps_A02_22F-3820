@@ -8,3 +8,6 @@ __pycache__/
 !.env.example
 # Generated model binary
 artifacts/model.joblib
+
+# Local backup files
+app/main_backup.py
