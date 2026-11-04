@@ -1,12 +1,10 @@
-
-FROM python@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 AS training
+﻿FROM python:3.13-slim@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 AS training
 
 WORKDIR /app
 
 ARG MODEL_VERSION=1.0.1
 
 COPY requirements-train.txt .
-
 RUN pip install --no-cache-dir -r requirements-train.txt
 
 COPY training/ ./training/
@@ -19,7 +17,7 @@ RUN python training/train.py \
     --model-version "${MODEL_VERSION}"
 
 
-FROM python@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 AS runtime
+FROM python:3.13-slim@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1 AS runtime
 
 WORKDIR /app
 
@@ -34,7 +32,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     MODEL_VERSION=${MODEL_VERSION} \
     GIT_SHA=${GIT_SHA} \
     DECISION_THRESHOLD=0.5 \
-    LOG_LEVEL=INFO
+    LOG_LEVEL=INFO \
+    REDIS_PORT=6379
 
 LABEL org.opencontainers.image.title="Breast Cancer Triage API"
 LABEL org.opencontainers.image.version="${MODEL_VERSION}"
@@ -44,7 +43,6 @@ LABEL org.opencontainers.image.description="Containerized breast cancer ML predi
 RUN useradd --create-home --uid 10001 appuser
 
 COPY requirements-serve.txt .
-
 RUN pip install --no-cache-dir -r requirements-serve.txt
 
 COPY --chown=appuser:appuser app/ ./app/
@@ -59,4 +57,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)" || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["uvicorn"]
+CMD ["app.main:app", "--host", "0.0.0.0", "--port", "8000"]
