@@ -10,3 +10,6 @@ dvc-remote
 clean-room-test
 docs
 *.log
+
+# Local backup files
+app/main_backup.py
