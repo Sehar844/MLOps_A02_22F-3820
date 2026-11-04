@@ -1,0 +1,4 @@
+-r requirements-train.txt
+-r requirements-serve.txt
+pytest==8.3.3
+flake8==7.1.1
