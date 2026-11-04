@@ -160,7 +160,7 @@ def predict(data: PredictionInput):
     input_data = pd.DataFrame([data.model_dump()], columns=FEATURES)
 
     probability = float(model.predict_proba(input_data)[0][1])
-    prediction = int(probability >= decision_threshold)
+    prediction = "malignant" if probability >= decision_threshold else "benign"
 
     if redis_client is not None:
         try:
